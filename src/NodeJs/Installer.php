@@ -284,9 +284,13 @@ class Installer
              * which is why there is the third call argument (not present
              * in interface footprint).
              */
-            $downloader->download($package, $targetDir);
+            $promise = $downloader->download($package, $targetDir, null, true);
 
-            return $package;
+            if (!$promise) {
+                throw new \Exception('Could not download the file');
+            }
+
+            return $promise;
         } catch (\Exception $exception) {
             $errorMessage = sprintf(
                 'Unexpected error while downloading v%s: %s',
@@ -325,25 +329,48 @@ class Installer
 
         $fullPath = FileUtils::composePath($this->vendorDir, $relativePath);
 
-        $this->download($nodePackage, $fullPath);
+        $this->cliIo->write(
+            sprintf('Downloading <info>%s</info> to <info>%s</info>', $nodePackage->getName(), $fullPath)
+        );
 
-        $this->cliIo->write('');
-        $this->cliIo->write('<info>Done</info>');
+        $promise = $this->download($nodePackage, $fullPath);
 
-        $fileSystem = new \Composer\Util\Filesystem();
+        $promise->then(function ($fullPath) {
+            $this->cliIo->write('');
+            $this->cliIo->write('<info>Done</info>');
 
-        foreach (array('npm', 'npx') as $linkName) {
-            $targetPath = FileUtils::composePath($fullPath, 'bin', $linkName);
+            $fileSystem = new \Composer\Util\Filesystem();
 
-            if (file_exists($targetPath)) {
-                $fileSystem->remove($targetPath);
+            foreach (array('npm', 'npx') as $linkName) {
+                $targetPath = FileUtils::composePath($fullPath, 'bin', $linkName);
+
+                if (file_exists($targetPath)) {
+                    $fileSystem->remove($targetPath);
+                }
+
+                $targetDir = sprintf('%s/lib/node_modules/npm/bin/', getcwd());
+                $targetDir = str_replace('/', DIRECTORY_SEPARATOR, $targetDir);
+
+                if (!file_exists($targetDir)) {
+                    $this->cliIo->write(
+                        sprintf('Creating directory <info>%s</info>', $targetDir)
+                    );
+
+                    mkdir($targetDir, 0775, true);
+                }
+
+                $targetLink = sprintf('%s%s-cli.js', $targetDir, $linkName);
+
+                $this->cliIo->write(
+                    sprintf('Linking <info>%s</info> (<info>%s</info>)', $targetLink, $targetPath)
+                );
+
+                symlink($targetLink, $targetPath);
             }
-
-            symlink(
-                sprintf('../lib/node_modules/npm/bin/%s-cli.js', $linkName),
-                $targetPath
-            );
-        }
+        },
+        function () {
+            throw new \Exception('File could not be downloaded');
+        });
 
         return $nodePackage;
     }
