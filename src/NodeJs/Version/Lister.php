@@ -1,6 +1,7 @@
 <?php
 namespace Mouf\NodeJsInstaller\Nodejs\Version;
 
+use Composer\Config;
 use Composer\IO\IOInterface;
 use Composer\Util\RemoteFilesystem;
 
@@ -15,7 +16,9 @@ class Lister
 
     public function __construct(IOInterface $io)
     {
-        $this->remoteFilesystem = new RemoteFilesystem($io);
+        $config = new Config();
+
+        $this->remoteFilesystem = new RemoteFilesystem($io, $config);
     }
 
     public function getList()
