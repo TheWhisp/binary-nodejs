@@ -4,9 +4,9 @@ namespace Mouf\NodeJsInstaller;
 use Composer\Composer;
 use Composer\EventDispatcher\EventSubscriberInterface;
 use Composer\IO\IOInterface;
+use Composer\Plugin\PluginEvents;
 use Composer\Plugin\PluginInterface;
 use Composer\Script\ScriptEvents;
-use Composer\Installer\InstallerEvents;
 
 /**
  * This class is the entry point for the NodeJs plugin.
@@ -26,7 +26,7 @@ class Plugin implements PluginInterface, EventSubscriberInterface
      * @var \Mouf\NodeJsInstaller\Strategy\BootstrapStrategy
      */
     private $bootstrapStrategy;
-    
+
     /**
      * @var \Mouf\NodeJsInstaller\NodeJs\Bootstrap
      */
@@ -38,9 +38,9 @@ class Plugin implements PluginInterface, EventSubscriberInterface
 
         $composerContextFactory = new \Mouf\NodeJsInstaller\Factory\ComposerContextFactory($composer);
         $composerContext = $composerContextFactory->create();
-        
+
         $this->bootstrapStrategy = new \Mouf\NodeJsInstaller\Strategy\BootstrapStrategy($composerContext);
-        
+
         $this->nodeJsBootstrap = new \Mouf\NodeJsInstaller\NodeJs\Bootstrap(
             $composerContext,
             $cliIo
@@ -55,7 +55,7 @@ class Plugin implements PluginInterface, EventSubscriberInterface
     public static function getSubscribedEvents()
     {
         return array(
-            InstallerEvents::PRE_DEPENDENCIES_SOLVING => array(
+            PluginEvents::PRE_POOL_CREATE => array(
                 array('onPostUpdateInstall', 199),
             ),
             ScriptEvents::POST_INSTALL_CMD => array(
@@ -81,16 +81,16 @@ class Plugin implements PluginInterface, EventSubscriberInterface
 
         $this->nodeJsBootstrap = null;
     }
-    
+
     public function onPostUpdateInstall()
     {
         if (!$this->nodeJsBootstrap || !$this->bootstrapStrategy->shouldAllow()) {
             return;
         }
-                 
+
         $this->nodeJsBootstrap->dispatch();
     }
-    
+
     public function deactivate(Composer $composer, IOInterface $io)
     {
         // TODO: Implement deactivate() method.
