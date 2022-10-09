@@ -277,7 +277,7 @@ class Installer
     {
         try {
             /** @var \Composer\Downloader\DownloaderInterface $downloader */
-            $downloader = $this->downloadManager->getDownloaderForInstalledPackage($package);
+            $downloader = $this->downloadManager->getDownloaderForPackage($package);
 
             /**
              * Some downloader types have the option to mute the output,
