@@ -12,7 +12,7 @@ class Installer
      * @var \Composer\Package\PackageInterface
      */
     private $ownerPackage;
-    
+
     /**
      * @var IOInterface
      */
@@ -32,7 +32,7 @@ class Installer
      * @var \Composer\Downloader\DownloadManager
      */
     private $downloadManager;
-    
+
     public function __construct(
         \Composer\Package\PackageInterface $ownerPackage,
         \Composer\Downloader\DownloadManager $downloadManager,
@@ -84,7 +84,7 @@ class Installer
     public function getNodeJsGlobalInstallPath()
     {
         $pathToNodeJS = $this->getGlobalInstallPath('nodejs');
-        
+
         if (!$pathToNodeJS) {
             $pathToNodeJS = $this->getGlobalInstallPath('node');
         }
@@ -153,15 +153,15 @@ class Installer
         $output = '';
 
         $cwd = getcwd();
-        
+
         $projectRoot = FileUtils::getClosestFilePath($this->vendorDir, Files::PACKAGE_CONFIG);
-        
+
         chdir($projectRoot);
 
         ob_start();
 
         $cmd = FileUtils::composePath($binDir, 'node -v 2>&1');
-        
+
         $version = exec($cmd, $output, $returnCode);
 
         ob_end_clean();
@@ -178,21 +178,21 @@ class Installer
     private function getArchitectureLabel()
     {
         $code = Environment::getArchitecture();
-        
+
         $labels = array(
             32 => 'x86',
             64 => 'x64'
         );
-        
+
         return isset($labels[$code]) ? $labels[$code] : $code;
     }
-    
+
     private function getOsLabel()
     {
         $osLabel = '';
-        
+
         $isArm = Environment::isLinux() && Environment::isArm();
-        
+
         if (Environment::isMacOS()) {
             $osLabel = 'darwin';
         } elseif (Environment::isSunOS()) {
@@ -208,16 +208,16 @@ class Installer
         } elseif (Environment::isWindows()) {
             $osLabel = 'windows';
         }
-        
+
         if (!$osLabel) {
             throw new \Mouf\NodeJsInstaller\Exception\InstallerException(
                 'Unsupported architecture: ' . PHP_OS . ' - ' . Environment::getArchitecture() . ' bits'
             );
         }
-        
+
         return $osLabel;
     }
-    
+
     /**
      * Returns URL based on version.
      *
@@ -230,13 +230,13 @@ class Installer
      */
     public function getDownloadUrl($version)
     {
-        
+
         $baseUrl = \Mouf\NodeJsInstaller\NodeJs\Version\Lister::NODEJS_DIST_URL . 'v{{VERSION}}';
         $downloadPath = '';
-        
+
         if (Environment::isWindows()) {
             $binaryName = 'node.exe';
-            
+
             if (version_compare($version, '4.0.0') >= 0) {
                 $downloadPath = FileUtils::composePath('win-{{ARCHITECTURE}}', $binaryName);
             } else {
@@ -265,7 +265,7 @@ class Installer
                 );
             }
         }
-        
+
         return str_replace(
             array('{{VERSION}}', '{{ARCHITECTURE}}', '{{OS}}'),
             array($version, $this->getArchitectureLabel(), $this->getOsLabel()),
@@ -284,7 +284,7 @@ class Installer
              * which is why there is the third call argument (not present
              * in interface footprint).
              */
-            $downloader->download($package, $targetDir, false);
+            $downloader->download($package, $targetDir);
 
             return $package;
         } catch (\Exception $exception) {
@@ -297,12 +297,12 @@ class Installer
             throw new \Exception($errorMessage);
         }
     }
-    
+
     public function getInstallPath(\Composer\Package\PackageInterface $package)
     {
         return FileUtils::composePath($this->vendorDir, $package->getTargetDir());
     }
-    
+
     public function install($version)
     {
         $this->cliIo->write(
@@ -310,7 +310,7 @@ class Installer
         );
 
         $ownerName = $this->ownerPackage->getName();
-        
+
         $relativePath = FileUtils::composePath(
             $ownerName,
             'downloads',
@@ -324,21 +324,21 @@ class Installer
         );
 
         $fullPath = FileUtils::composePath($this->vendorDir, $relativePath);
-        
+
         $this->download($nodePackage, $fullPath);
 
         $this->cliIo->write('');
         $this->cliIo->write('<info>Done</info>');
 
         $fileSystem = new \Composer\Util\Filesystem();
-        
+
         foreach (array('npm', 'npx') as $linkName) {
             $targetPath = FileUtils::composePath($fullPath, 'bin', $linkName);
 
             if (file_exists($targetPath)) {
                 $fileSystem->remove($targetPath);
             }
-            
+
             symlink(
                 sprintf('../lib/node_modules/npm/bin/%s-cli.js', $linkName),
                 $targetPath
@@ -347,11 +347,11 @@ class Installer
 
         return $nodePackage;
     }
-    
+
     public function createPackage($name, $version, $targetDir, $binFiles = array())
     {
         $remoteFile = $this->getDownloadUrl($version);
-        
+
         $package = new \Composer\Package\Package(
             $name,
             $this->versionParser->normalize($version),
@@ -394,7 +394,7 @@ class Installer
         $cwd = getcwd();
 
         $projectRoot = FileUtils::getClosestFilePath($this->vendorDir, Files::PACKAGE_CONFIG);
-        
+
         chdir($projectRoot);
 
         if (!file_exists($binDir)) {
@@ -410,7 +410,7 @@ class Installer
         $binDir = realpath($binDir);
 
         $binFiles = array('node', 'npm');
-        
+
         if (Environment::isWindows()) {
             $binFiles = array_map(function ($item) {
                 return $item . '.bat';
@@ -420,7 +420,7 @@ class Installer
         foreach ($binFiles as $binFile) {
             $this->createBinScript($binDir, $fullTargetDir, $binFile, $binFile, $isLocal);
         }
-        
+
         chdir($cwd);
     }
 
@@ -437,9 +437,9 @@ class Installer
     {
         $packageRoot = FileUtils::getClosestFilePath(__DIR__, Files::PACKAGE_CONFIG);
         $binScriptPath = FileUtils::composePath($packageRoot, 'bin', ($isLocal ? 'local' : 'global'), $scriptName);
-        
+
         $content = file_get_contents($binScriptPath);
-        
+
         if ($isLocal) {
             $path = rtrim($this->makePathRelative($fullTargetDir, $binDir), DIRECTORY_SEPARATOR);
         } else {
@@ -455,11 +455,11 @@ class Installer
                 return;
             }
         }
-        
+
         $scriptPath = FileUtils::composePath($binDir, $scriptName);
-        
+
         file_put_contents($scriptPath, sprintf($content, $path));
-        
+
         chmod($scriptPath, 0755);
     }
 
@@ -479,23 +479,23 @@ class Installer
             $endPath = strtr($endPath, '\\', '/');
             $startPath = strtr($startPath, '\\', '/');
         }
-        
+
         // Split the paths into arrays
         $startPathArr = explode('/', trim($startPath, '/'));
         $endPathArr = explode('/', trim($endPath, '/'));
         // Find for which directory the common path stops
         $index = 0;
-        
+
         while (isset($startPathArr[$index], $endPathArr[$index]) && $startPathArr[$index] === $endPathArr[$index]) {
             $index++;
         }
-        
+
         // Determine how deep the start path is relative to the common path (ie, "web/bundles" = 2 levels)
         $depth = count($startPathArr) - $index;
-        
+
         $traverser = str_repeat('../', $depth);
         $endPathRemainder = implode('/', array_slice($endPathArr, $index));
-        
+
         // Construct $endPath from traversing to the common path, then to the remaining $endPath
         $relativePath = $traverser . ($endPathRemainder !== '' ? $endPathRemainder . '/' : '');
 
