@@ -90,4 +90,14 @@ class Plugin implements PluginInterface, EventSubscriberInterface
                  
         $this->nodeJsBootstrap->dispatch();
     }
+    
+    public function deactivate(Composer $composer, IOInterface $io)
+    {
+        // TODO: Implement deactivate() method.
+    }
+
+    public function uninstall(Composer $composer, IOInterface $io)
+    {
+        // TODO: Implement uninstall() method.
+    }
 }
