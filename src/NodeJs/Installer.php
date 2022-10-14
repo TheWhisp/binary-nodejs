@@ -383,11 +383,11 @@ class Installer
         $targetDir = sprintf('%s/lib/node_modules', getcwd());
         $targetDir = str_replace('/', DIRECTORY_SEPARATOR, $targetDir);
 
-        $this->cliIo->write(
-            sprintf('Finishing installation: <info>%s</info> to <info>%s</info>', $sourceDir, $targetDir)
-        );
+        $this->deleteDirectory($targetDir);
 
-        $this->deleteDirectory($targetDir, false);
+        $this->cliIo->write(
+            sprintf('Finishing installation, moving: <info>%s</info> to <info>%s</info>', $sourceDir, $targetDir)
+        );
         rename($sourceDir, $targetDir);
 
         $this->deleteDirectory($this->getInstallDir());
@@ -456,6 +456,10 @@ class Installer
      */
     protected function deleteDirectory(string $path, bool $isPrint = true): bool
     {
+        if (!file_exists($path)) {
+            return false;
+        }
+        
         $iterator = new \RecursiveDirectoryIterator($path, FilesystemIterator::SKIP_DOTS);
         $files = new \RecursiveIteratorIterator($iterator, \RecursiveIteratorIterator::CHILD_FIRST);
 
