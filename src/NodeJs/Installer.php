@@ -1,10 +1,17 @@
 <?php
 namespace Mouf\NodeJsInstaller\Nodejs;
 
+use Composer\Downloader\TarDownloader;
 use Composer\IO\IOInterface;
+use Composer\Package\PackageInterface;
+use FilesystemIterator;
 use Mouf\NodeJsInstaller\Utils\FileUtils;
 use Mouf\NodeJsInstaller\Composer\Environment;
 use Mouf\NodeJsInstaller\Composer\Internal\Files;
+use React\Promise\FulfilledPromise;
+use React\Promise\Promise;
+use React\Promise\PromiseInterface;
+use React\Promise\RejectedPromise;
 
 class Installer
 {
@@ -309,6 +316,12 @@ class Installer
 
     public function install($version)
     {
+        if ($this->isInstalled($this->versionParser->normalize($version))) {
+            $this->cliIo->write(sprintf('NodeJS <info>v%s</info> is already installed', $version));
+
+            return null;
+        }
+
         $this->cliIo->write(
             sprintf('Installing <info>NodeJS v%s</info>', $version)
         );
@@ -335,44 +348,140 @@ class Installer
 
         $promise = $this->download($nodePackage, $fullPath);
 
-        $promise->then(function ($fullPath) {
-            $this->cliIo->write('');
-            $this->cliIo->write('<info>Done</info>');
+        $promise->then(function ($fullPath) use ($nodePackage) {
+            $this->cliIo->write(sprintf('Downloaded <info>%s</info>', $fullPath));
 
-            $fileSystem = new \Composer\Util\Filesystem();
-
-            foreach (array('npm', 'npx') as $linkName) {
-                $targetPath = FileUtils::composePath($fullPath, 'bin', $linkName);
-
-                if (file_exists($targetPath)) {
-                    $fileSystem->remove($targetPath);
-                }
-
-                $targetDir = sprintf('%s/lib/node_modules/npm/bin/', getcwd());
-                $targetDir = str_replace('/', DIRECTORY_SEPARATOR, $targetDir);
-
-                if (!file_exists($targetDir)) {
-                    $this->cliIo->write(
-                        sprintf('Creating directory <info>%s</info>', $targetDir)
-                    );
-
-                    mkdir($targetDir, 0775, true);
-                }
-
-                $targetLink = sprintf('%s%s-cli.js', $targetDir, $linkName);
-
-                $this->cliIo->write(
-                    sprintf('Linking <info>%s</info> (<info>%s</info>)', $targetLink, $targetPath)
-                );
-
-                symlink($targetLink, $targetPath);
-            }
+            $this->installDownloadedPackage($nodePackage);
         },
         function () {
-            throw new \Exception('File could not be downloaded');
+            $this->cliIo->writeError('Package could not be downloaded');
         });
 
         return $nodePackage;
+    }
+
+    /**
+     * @param PackageInterface $package
+     * @return void
+     */
+    protected function installDownloadedPackage(PackageInterface $package): void
+    {
+        /** @var TarDownloader $downloader */
+        $downloader = $this->downloadManager->getDownloaderForPackage($package);
+
+        $installDir = $this->getInstallDir();
+
+        $this->cliIo->write(
+            sprintf('Installing to <info>%s</info>', $installDir)
+        );
+
+        $downloader->install($package, $installDir);
+
+        $sourceDir = sprintf('%slib/node_modules', $this->getInstallDir());
+        $sourceDir = str_replace('/', DIRECTORY_SEPARATOR, $sourceDir);
+
+        $targetDir = sprintf('%s/lib/node_modules', getcwd());
+        $targetDir = str_replace('/', DIRECTORY_SEPARATOR, $targetDir);
+
+        $this->cliIo->write(
+            sprintf('Finishing installation: <info>%s</info> to <info>%s</info>', $sourceDir, $targetDir)
+        );
+
+        $this->deleteDirectory($targetDir, false);
+        rename($sourceDir, $targetDir);
+
+        $this->deleteDirectory($this->getInstallDir());
+
+        $this->deleteInstallFiles();
+        $this->createInstallVersionFile($package->getVersion());
+
+        $this->cliIo->write(sprintf('<info>Done. Installed NodeJS v%s</info>', $package->getVersion()));
+    }
+
+    /**
+     * @param string $version
+     * @return void
+     */
+    protected function createInstallVersionFile(string $version): void
+    {
+        $file = sprintf('%s/lib/node_%s.txt', getcwd(), str_replace('.', '_', $version));
+
+        file_put_contents($file, json_encode(['version' => $version]));
+    }
+
+    /**
+     * @param string $version
+     * @return bool
+     */
+    protected function isInstalled(string $version): bool
+    {
+        $file = sprintf('%s/lib/node_%s.txt', getcwd(), str_replace('.', '_', $version));
+
+        return file_exists($file);
+    }
+
+    /**
+     * @return void
+     */
+    protected function deleteInstallFiles(): void
+    {
+        $files = sprintf('%s/lib/node_*.txt', getcwd());
+
+        array_map('unlink', glob($files));
+    }
+
+    /**
+     * @return string
+     */
+    protected function getInstallDir(): string
+    {
+        $targetDir = sprintf('%s/lib/node_modules_install/', getcwd());
+        $targetDir = str_replace('/', DIRECTORY_SEPARATOR, $targetDir);
+
+        if (!file_exists($targetDir)) {
+            $this->cliIo->write(
+                sprintf('Creating directory <info>%s</info>', $targetDir)
+            );
+
+            mkdir($targetDir, 0775, true);
+        }
+
+        return $targetDir;
+    }
+
+    /**
+     * @param string $path
+     * @param bool $isPrint
+     * @return bool
+     */
+    protected function deleteDirectory(string $path, bool $isPrint = true): bool
+    {
+        $iterator = new \RecursiveDirectoryIterator($path, FilesystemIterator::SKIP_DOTS);
+        $files = new \RecursiveIteratorIterator($iterator, \RecursiveIteratorIterator::CHILD_FIRST);
+
+        foreach( $files as $file) {
+            if ($file->isDir()){
+                rmdir($file->getRealPath());
+            } else {
+                unlink($file->getRealPath());
+            }
+        }
+
+        $result = rmdir($path);
+
+        if ($isPrint) {
+            if ($result) {
+                $this->cliIo->write(
+                    sprintf('Deleted directory: %s', $path)
+                );
+            } else {
+                $this->cliIo->writeError(
+                    sprintf('Could not delete: %s', $path)
+                );
+            }
+        }
+
+        return $result;
     }
 
     public function createPackage($name, $version, $targetDir, $binFiles = array())
