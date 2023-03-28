@@ -234,6 +234,8 @@ class Bootstrap
                 
                 if (isset($extra['mouf']['nodejs']['version'])) {
                     $versions[] = $extra['mouf']['nodejs']['version'];
+                    
+                    break;
                 }
             }
         }
